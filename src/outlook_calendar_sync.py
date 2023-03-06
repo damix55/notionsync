@@ -1,6 +1,5 @@
 from outlook_calendar import OutlookCalendar
 from notion import Notion
-from _utils import load_last_sync, update_last_sync
 import logging
 import pythoncom
 
@@ -23,16 +22,17 @@ class CalendarSyncer:
 
     def __init__(self, config, threaded=False):
         self.config = config
+        self.config_data = self.config.config
         self.threaded = threaded
 
         # Setup the logger for logger to stdout and to file
         self.logger = logging.getLogger(__name__)
 
         self.outlook_calendar = OutlookCalendar()
-        self.notion = Notion(self.config['notion'])
+        self.notion = Notion(self.config_data['notion'])
 
         self.activity = 'calendar'
-        self.last_sync = load_last_sync(self.activity)
+        self.last_sync = self.config.load_last_sync(self.activity)
         self.status = 'not started'
         self.exception = None
 
@@ -110,7 +110,7 @@ class CalendarSyncer:
                 self.logger.info(success_message[:-2])
 
             # Save last sync
-            self.last_sync = update_last_sync(self.activity)
+            self.last_sync = self.config.update_last_sync(self.activity)
             self.exception = None
             self.status = 'success'
             return self.last_sync

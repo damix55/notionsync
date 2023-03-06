@@ -1,5 +1,4 @@
 import datetime
-import logging
 import math
 import pywintypes
 from outlook import Outlook

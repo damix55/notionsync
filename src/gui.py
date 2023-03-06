@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon
 from outlook_calendar_sync import CalendarSyncer
-from _utils import get_file_path, load_timezone, load_config
+from config import Config
 from _logger import logger_setup
 
 # [ ] stop the process after n errors ?
@@ -38,22 +38,20 @@ class SyncerGUI(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.config = load_config()
+        self.config = Config()
+        self.config_data = self.config.config
 
         self.logger = logging.getLogger(__name__)
-        logger_setup(f'{get_file_path()[0]}/logs', keep_for_days=self.config['logs']['keep_for_days'], stdout_level='INFO')
+        logger_setup(self.config.logs_folder, keep_for_days=self.config_data['logs']['keep_for_days'], stdout_level='INFO')
         
         # Set up the main window
         self.setWindowTitle("NotionSync 0.0.1")
         self.setFixedSize(400, 100)
 
-        # Get the path to the file
-        self.file_path = get_file_path()[0] 
-
         # Set up the system tray icon
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
-        self.tray_icon.setIcon(QIcon("assets/icon.png"))
+        self.tray_icon.setIcon(QIcon(os.path.join(self.config.assets_folder, "icon.png")))
         self.tray_icon.setToolTip("Calendar status: OK\nLast sync: " + str(datetime.date.today()))
         self.tray_icon.setVisible(True)
 
@@ -68,7 +66,7 @@ class SyncerGUI(QMainWindow):
         calendar = CalendarSyncer(self.config, threaded=True)
 
         # Create the widgets
-        self.calendar_gui_syncer = SyncerElement(calendar, 'Calendar')
+        self.calendar_gui_syncer = SyncerElement(calendar, self.config, 'Calendar')
         # self.mail_gui_syncer = SyncerElement(calendar, 'Mail')
 
         # Create the main layout
@@ -90,7 +88,7 @@ class SyncerGUI(QMainWindow):
     def open_logs(self):
         """Open the current log file in the default text editor"""
         # Get the path to the log file
-        log_file = f"{self.file_path}/logs/{datetime.date.today():%Y-%m-%d}.log"
+        log_file = os.path.join(self.config.logs_folder, f"{datetime.date.today():%Y-%m-%d}.log")
 
         # Open the log file in the default text editor
         os.startfile(log_file)
@@ -108,7 +106,7 @@ class SyncerGUI(QMainWindow):
 
 
 class SyncerElement(QHBoxLayout):
-    def __init__(self, handler, name, *args, **kwargs):
+    def __init__(self, handler, config, name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(__name__)
 
@@ -119,6 +117,7 @@ class SyncerElement(QHBoxLayout):
         self.sync_label = QLabel()
 
         self.handler = handler
+        self.config = config
         
         last_sync = self.handler.last_sync
         if last_sync is None:
@@ -128,12 +127,12 @@ class SyncerElement(QHBoxLayout):
             self.update_sync_time(last_sync)
 
         self.refresh_button = QPushButton()
-        self.refresh_button.setIcon(QIcon("assets/refresh.png"))
+        self.refresh_button.setIcon(QIcon(os.path.join(self.config.assets_folder, "refresh.png")))
         self.refresh_button.setFixedSize(32, 32)
         self.refresh_button.clicked.connect(self.manual_sync)
 
         self.pause_button = QPushButton()
-        self.pause_button.setIcon(QIcon("assets/pause.png"))
+        self.pause_button.setIcon(QIcon(os.path.join(self.config.assets_folder, "pause.png")))
         self.pause_button.setFixedSize(32, 32)
         self.pause_button.clicked.connect(self.toggle_pause)
 
@@ -147,7 +146,7 @@ class SyncerElement(QHBoxLayout):
         self.addWidget(self.pause_button)
 
         self.sync_thread = QThread()
-        self.sync_worker = SyncScheduler(self.handler, 1)
+        self.sync_worker = SyncScheduler(self.handler, self.config.timezone, 1)
         self.sync_worker.moveToThread(self.sync_thread)
         self.sync_thread.started.connect(self.sync_worker.start_sync)
         self.sync_worker.last_sync.connect(self.update_sync_time)
@@ -281,10 +280,11 @@ class SyncScheduler(QObject):
     last_sync = pyqtSignal(datetime.datetime)
     is_running = pyqtSignal(bool)
 
-    def __init__(self, handler, minutes, *args, **kwargs):
+    def __init__(self, handler, timezone, minutes, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(__name__)
         self.handler = handler
+        self.timezone = timezone
         self.minutes = minutes
         self.pause = False
         self.is_running.emit(False)
@@ -292,10 +292,11 @@ class SyncScheduler(QObject):
 
     def sync(self):
         self.is_running.emit(True)
-        # Sync from yesterday
         # TODO make it configurable
-        from_date = datetime.datetime.now(load_timezone()) - datetime.timedelta(days=1)
-        last_sync = self.handler.sync(from_date=from_date)
+        from_date = datetime.datetime.today(self.timezone)
+        to_date = from_date + datetime.timedelta(days=14)
+
+        last_sync = self.handler.sync(from_date=from_date, to_date=to_date)
         self.last_sync.emit(last_sync)
         self.is_running.emit(False)
 

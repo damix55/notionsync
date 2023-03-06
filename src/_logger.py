@@ -1,34 +1,8 @@
 import logging
 import os
 from datetime import datetime
-from _utils import text_format
 
 # [ ] fix log output to file: se metto level stdout a info, debug su file sfasa
-
-# Formatter for standard output
-class StdoutFormatter(logging.Formatter):
-    """Custom formatter for standard output with colors and custom format"""
-
-    format_string = f"%(asctime)s.%(msecs)03d | %(name)s | {text_format('%(levelname)s', 'bold')} | %(message)s (%(filename)s:%(lineno)d)"
-
-    # set colors for levels of log
-    FORMATS = {
-        logging.DEBUG: text_format(format_string, 'purple'),
-        logging.INFO: text_format(format_string, 'cyan'),
-        logging.WARNING: text_format(format_string, 'yellow'),
-        logging.ERROR: text_format(format_string, 'red'),
-        logging.CRITICAL: text_format(format_string, 'red')
-    }
-
-    def format(self, record):
-        # truncate name and levelname
-        record.name = record.name[:11].ljust(11)
-        record.levelname = record.levelname[:6].ljust(6)
-
-        log_fmt = self.FORMATS.get(record.levelno)
-        date_fmt = "%H:%M:%S"
-        formatter = logging.Formatter(log_fmt, date_fmt)
-        return formatter.format(record)
 
 
 def logger_setup(path, stdout_level='debug', keep_for_days=None):
@@ -102,3 +76,59 @@ def delete_older_files(path, days):
             # checking if file is more than n days old 
             if filetime.days <= -days:
                 os.remove(os.path.join(root, name))
+
+
+def text_format(text, style, additional_style=None):
+    """Format text. Support different styles: purple, cyan, darkcyan, blue, green, yellow, red, bold, underline.
+
+    Args:
+        text (str): text to format
+        style (str): style to apply to the text
+        additional_style (str, optional): additional style to apply to the text. Defaults to None.
+
+    Returns:
+        str: formatted text
+    """
+
+    styles = {
+        'purple': '\033[95m',
+        'cyan': '\033[96m',
+        'darkcyan': '\033[36m',
+        'blue': '\033[94m',
+        'green': '\033[92m',
+        'yellow': '\033[93m',
+        'red': '\033[91m',
+        'bold': '\033[1m',
+        'underline': '\033[4m'
+    }
+
+    if additional_style is not None:
+        text = text_format(text, additional_style)
+
+    return styles[style] + text + '\033[0m'
+
+
+# Formatter for standard output
+class StdoutFormatter(logging.Formatter):
+    """Custom formatter for standard output with colors and custom format"""
+
+    format_string = f"%(asctime)s.%(msecs)03d | %(name)s | {text_format('%(levelname)s', 'bold')} | %(message)s (%(filename)s:%(lineno)d)"
+
+    # set colors for levels of log
+    FORMATS = {
+        logging.DEBUG: text_format(format_string, 'purple'),
+        logging.INFO: text_format(format_string, 'cyan'),
+        logging.WARNING: text_format(format_string, 'yellow'),
+        logging.ERROR: text_format(format_string, 'red'),
+        logging.CRITICAL: text_format(format_string, 'red')
+    }
+
+    def format(self, record):
+        # truncate name and levelname
+        record.name = record.name[:11].ljust(11)
+        record.levelname = record.levelname[:6].ljust(6)
+
+        log_fmt = self.FORMATS.get(record.levelno)
+        date_fmt = "%H:%M:%S"
+        formatter = logging.Formatter(log_fmt, date_fmt)
+        return formatter.format(record)
