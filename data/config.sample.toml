@@ -1,0 +1,11 @@
+[notion]
+key = "XXXXXXXXXXXXXXXXXXXXXXXX"
+mail_db = "00000000000000000000000000000000"
+projects_db = "00000000000000000000000000000000"
+calendar_db = "00000000000000000000000000000000"
+
+[logs]
+keep_for_days = 7
+
+[misc]
+timezone = 'Europe/Rome'

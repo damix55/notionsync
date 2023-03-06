@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# VSCode folder
+.vscode/
+
+# Program data
+data/config.toml
+data_last_sync.json
+src/logs
+
+# Test files
+*test.py
