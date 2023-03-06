@@ -1,5 +1,6 @@
 import datetime
 import math
+import re
 import pywintypes
 from outlook import Outlook
 
@@ -191,12 +192,41 @@ class OutlookCalendar(Outlook):
             "start": appointment_start,
             "end": appointment_end,
             "location": appointment.Location,
-            "project": appointment.Categories,
+            "project": appointment.Categories.split("; ") if appointment.Categories else [],
             "organizer": appointment.Organizer,
             "last_modified": appointment.LastModificationTime,
         }
         
         self.logger.debug(f"Event dict: {event_dict}")
 
-        event_dict.update({"body": appointment.Body})
+        event_dict.update({"body": self.clean_body(appointment.Body)})
         return event_dict
+    
+
+    def clean_body(self, body):
+        """Clean the body of an event
+
+        Args:
+            body (str): Body text
+
+        Returns:
+            str: Cleaned body text
+        """
+
+        # Extract Google Meet body
+        if 'Google Meet' in body:
+            pattern = r'(?:Altri numeri di telefono|More phone numbers)(?: <.+>)(?:\s+)(?:Descrizione|Description)?(?:\s+)(?:MODIFICATO|CHANGED)?(.+)(?:Quando|When)'
+            match = re.search(pattern, body, re.DOTALL)
+            if match:
+                body = match.group(1)
+                body = body.strip()
+        
+        # Extract Microsoft Teams body
+        elif 'Microsoft Teams' in body:
+            # Get content before the horizontal line
+            body = body.split('_'*80)[0].strip()
+
+            # Remove double newlines
+            body = body.replace('\r\n\r\n', '\r\n')
+
+        return body

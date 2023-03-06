@@ -76,8 +76,9 @@ class Notion:
         Args:
             data (dict): event data
         """
-        properties, content = self.convert_event_to_notion(data)
-        self.add_in_db(self.calendar_db, properties, children=content, **kwargs)
+        
+        properties, content, icon = self.convert_event_to_notion(data)
+        self.add_in_db(self.calendar_db, properties, children=content, icon=icon, **kwargs)
 
 
     def update_calendar_event(self, event_internal_id, data, **kwargs):
@@ -90,10 +91,10 @@ class Notion:
         # TODO update the content too
         # "To update page content instead of page properties, use the block object endpoints"
         # update the properties
-        properties, _ = self.convert_event_to_notion(data)
+        properties, _, icon = self.convert_event_to_notion(data)
 
         # update the page
-        self.notion.pages.update(event_internal_id, properties=properties, **kwargs)
+        self.notion.pages.update(event_internal_id, properties=properties, icon=icon, **kwargs)
         
 
     def delete_calendar_event(self, event_internal_id):
@@ -134,20 +135,40 @@ class Notion:
             # 'Organizzatore': {'rich_text': [{'text': {'content': event['organizer']}}]}
         }
 
-        # format the body
-        # TODO add support for links
-        content = []
-        if event['body'] != '':
-            for line in event['body'].splitlines():
-                if re.match(r'^\s*$', line) is None:
-                    content.append({'object': 'block', 'type': 'paragraph', 'paragraph': {'rich_text': [{'type': 'text', 'text': {'content': line}}]}})
+        # TODO add support for links and format the body
+        content = [{
+            'object': 'block',
+            'type': 'callout',
+            'callout': {
+                'icon': {
+                    "type": "external",
+                    "external":{
+                        "url": "https://www.notion.so/icons/drafts_gray.svg?mode=dark"
+                    }
+                },
+                "color": "gray_background",
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "content": event['body'],
+                        },
+                    }
+                ],
+            }
+        }]
 
-                
+        if event['project'] != []:
+            data['Progetto'] = {'relation': [{'id': self.get_project_id(p)} for p in event['project']]}
 
-        if event['project'] != '':
-            data['Progetto'] = {'relation': [{'id': self.get_project_id(event['project'])}]}
+        icon = {
+            "type": "external",
+            "external":{
+                "url": "https://www.notion.so/icons/calendar_gray.svg?mode=dark"
+            }
+        }
 
-        return data, content
+        return data, content, icon
 
 
     def get_calendar_events(self, start_date, end_date):

@@ -133,7 +133,7 @@ dmypy.json
 
 # Program data
 data/config.toml
-data_last_sync.json
+data/last_sync.json
 src/logs
 
 # Test files

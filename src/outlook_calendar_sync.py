@@ -2,12 +2,14 @@ from outlook_calendar import OutlookCalendar
 from notion import Notion
 import logging
 import pythoncom
+import fnmatch
 
 # [ ] Log migliori
 # [ ] Trovare come fare update senza cancellare e ricreare
 # [ ] Mettere i link cliccabili sul body?
 # [ ] Contenuto filtrato della roba di Teams/Google Meet così ci sono le note di chi organizza il Meeting
-# [ ] Icona calendario
+# [ ] Icona calendario -> template eventi (si può mettere organizzatore e luogo per esempio) 
+# [ ] Aggiunta di colonna preferiti su Worklog
 
 class CalendarSyncer:
     """Calendar sync class to sync events from Outlook to Notion
@@ -61,7 +63,7 @@ class CalendarSyncer:
         try:
             # Iterate through all new and modified events
             for event in self.outlook_calendar.iterate_events(from_date, to_date, self.last_sync, self.threaded):
-                if event['subject'] in self.config_data['calendar']['ignore']:
+                if any(fnmatch.fnmatch(event['subject'], i) for i in self.config_data['calendar']['ignore']):
                     self.logger.info(f"Skipping event: {event['subject']}")
                     continue
 
@@ -82,7 +84,7 @@ class CalendarSyncer:
 
             # Iterate through all deleted events from last sync
             for event in self.outlook_calendar.iterate_deleted_events(self.last_sync, self.threaded):
-                if event['subject'] in self.config_data['calendar']['ignore']:
+                if any(fnmatch.fnmatch(event['subject'], i) for i in self.config_data['calendar']['ignore']):
                     self.logger.info(f"Skipping event: {event['subject']}")
                     continue
 
@@ -125,8 +127,6 @@ class CalendarSyncer:
             # print the stack trace
             self.logger.exception("Calendar sync failed")
             self.logger.error(e)
-
-
             self.exception = e 
             self.status = 'failed'
 
