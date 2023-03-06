@@ -25,13 +25,6 @@ from _logger import logger_setup
 # [ ] manual start doesnt work
 # [ ] update the tarkbar tooltip with the last sync date
 # [ ] gestione errori
-# IDEE:
-# - Perché non utilizzare direttamente il db Worklog invece di Calendario?
-# - A questo punto:
-#   - Nuova colonna "Tipo: Meeting oppure Tag: Meeting/Evento
-#   - Contenuto filtrato della roba di Teams/Google Meet così ci sono le note di chi organizza il Meeting
-#   - Ore: span di tempo tra inizio e fine evento
-#   - Rimane in Worklog, ci posso prendere appunti sopra
 
 
 class SyncerGUI(QMainWindow):
@@ -293,7 +286,7 @@ class SyncScheduler(QObject):
     def sync(self):
         self.is_running.emit(True)
         # TODO make it configurable
-        from_date = datetime.datetime.today(self.timezone)
+        from_date = datetime.datetime.now(self.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
         to_date = from_date + datetime.timedelta(days=14)
 
         last_sync = self.handler.sync(from_date=from_date, to_date=to_date)

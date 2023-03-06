@@ -5,7 +5,8 @@ import pythoncom
 
 # [ ] Log migliori
 # [ ] Trovare come fare update senza cancellare e ricreare
-# [ ] Mettere i link cliccabili sul body
+# [ ] Mettere i link cliccabili sul body?
+# [ ] Contenuto filtrato della roba di Teams/Google Meet così ci sono le note di chi organizza il Meeting
 # [ ] Icona calendario
 
 class CalendarSyncer:
@@ -29,7 +30,7 @@ class CalendarSyncer:
         self.logger = logging.getLogger(__name__)
 
         self.outlook_calendar = OutlookCalendar()
-        self.notion = Notion(self.config_data['notion'])
+        self.notion = Notion(self.config_data['notion'], self.config.timezone_str)
 
         self.activity = 'calendar'
         self.last_sync = self.config.load_last_sync(self.activity)
@@ -60,9 +61,9 @@ class CalendarSyncer:
         try:
             # Iterate through all new and modified events
             for event in self.outlook_calendar.iterate_events(from_date, to_date, self.last_sync, self.threaded):
-                if event is None:
-                    # it's a deleted event, we have to delete it from notion
-                    pass
+                if event['subject'] in self.config_data['calendar']['ignore']:
+                    self.logger.info(f"Skipping event: {event['subject']}")
+                    continue
 
                 self.logger.info(f"Syncing event: {event['subject']} ({event['start'].strftime('%d/%m/%Y')}")
 
@@ -81,6 +82,10 @@ class CalendarSyncer:
 
             # Iterate through all deleted events from last sync
             for event in self.outlook_calendar.iterate_deleted_events(self.last_sync, self.threaded):
+                if event['subject'] in self.config_data['calendar']['ignore']:
+                    self.logger.info(f"Skipping event: {event['subject']}")
+                    continue
+
                 self.logger.info(f"Deleting event: {event['subject']}")
 
                 # Check if event exists in notion

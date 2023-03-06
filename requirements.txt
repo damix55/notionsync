@@ -1,0 +1,5 @@
+notion_client==2.0.0
+PyQt5==5.15.9
+pytz==2022.2.1
+pywin32==304
+toml==0.10.2

@@ -27,7 +27,8 @@ class Config:
         self.config = toml.load(self.config_file)
 
         # Load timezone
-        self.timezone = pytz.timezone(self.config['misc']['timezone'])
+        self.timezone_str = self.config['misc']['timezone']
+        self.timezone = pytz.timezone(self.timezone_str)
 
 
     def load_last_sync(self, activity):
@@ -67,7 +68,8 @@ class Config:
         if os.path.isfile(self.last_sync_file):
             with open(self.last_sync_file, 'r') as f:
                 last_sync_file = json.load(f)
-                data.update(last_sync_file)
+            last_sync_file.update(data)
+            data = last_sync_file
 
         with open(self.last_sync_file, 'w') as f:
             json.dump(data, f)

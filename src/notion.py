@@ -3,10 +3,11 @@ from notion_client import Client
 from datetime import datetime
 
 class Notion:
-    def __init__(self, config):
+    def __init__(self, config, timezone):
         self.notion = Client(auth=config['key'])
         self.project_db = config['projects_db']
         self.calendar_db = config['calendar_db']
+        self.timezone = timezone
 
     
     def get_projects_names(self):
@@ -45,7 +46,14 @@ class Notion:
             dict: element data
         """
 
-        response = self.notion.databases.query(database_id=db_id, filter={"property": "Id", "rich_text": {"equals": id}})
+        response = self.notion.databases.query(
+            database_id=db_id,
+            filter={"and": [
+                {"property": "Id", "rich_text": {"equals": id}},
+                {"property": "Tags", "multi_select": {"contains": "Meeting"}}
+            ]}
+        )
+
         if response['results']:
             return response['results'][0]
         
@@ -108,12 +116,22 @@ class Notion:
             dict: Notion page data
         """
 
+        start = event['start'].isoformat()
+        end = event['end'].isoformat()
+        date = event['start'].date().isoformat()
+        # duration in hours
+        duration = event['end'] - event['start']
+        hours = duration.seconds / 3600
+
         data = {
             'Id': {'rich_text': [{'text': {'content': event['id']}}]},
             'Nome': {'title': [{'text': {'content': event['subject']}}]},
-            'Data': {'date': {'start': event['start'].isoformat(), 'end': event['end'].isoformat(), 'time_zone': "Europe/Rome"}},
-            'Luogo': {'rich_text': [{'text': {'content': event['location']}}]},
-            'Organizzatore': {'rich_text': [{'text': {'content': event['organizer']}}]}
+            'Data': {'date': {'start': date}},
+            'Intervallo': {'date': {'start': start, 'end': end, 'time_zone': self.timezone}},
+            'Tags': {'multi_select': [{'name': 'Meeting'}]},
+            'Ore': {'number': hours},
+            # 'Luogo': {'rich_text': [{'text': {'content': event['location']}}]},
+            # 'Organizzatore': {'rich_text': [{'text': {'content': event['organizer']}}]}
         }
 
         # format the body
@@ -142,7 +160,13 @@ class Notion:
         Returns:
             list: list of events
         """
-        response = self.notion.databases.query(database_id=self.calendar_db, filter={"property": "Data", "date": {"on_or_after": start_date, "on_or_before": end_date}})
+        response = self.notion.databases.query(
+            database_id=self.calendar_db,
+            filter={"and": [
+                {"property": "Intervallo", "date": {"on_or_after": start_date, "on_or_before": end_date}},
+                {"property": "Tags", "multi_select": {"contains": "Meeting"}}
+            ]},
+            sorts=[{"property": "Intervallo", "direction": "ascending"}])
         return response['results']
     
 
