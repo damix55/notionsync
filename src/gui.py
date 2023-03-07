@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon
-from outlook_calendar_sync import CalendarSyncer
+from outlook_calendar_sync import CalendarSync
 from config import Config
 from _logger import logger_setup
 
@@ -56,7 +56,7 @@ class SyncerGUI(QMainWindow):
         self.tray_icon.setContextMenu(self.tray_menu)
 
         # Initialize the objects
-        calendar = CalendarSyncer(self.config, threaded=True)
+        calendar = CalendarSync(self.config, threaded=True)
 
         # Create the widgets
         self.calendar_gui_syncer = SyncerElement(calendar, self.config, 'Calendar')
@@ -185,8 +185,9 @@ class SyncerElement(QHBoxLayout):
         Pause the sync process.
         """
         self.is_paused = True
-        self.pause_button.setIcon(QIcon("assets/play.png"))
+        self.pause_button.setIcon(QIcon(os.path.join(self.config.assets_folder, "play.png")))
         self.update_status("Paused")
+        self.logger.info("Sync paused")
         self.quit_sync_thread()
 
 
@@ -195,8 +196,9 @@ class SyncerElement(QHBoxLayout):
         Start the sync process.
         """
         self.is_paused = False
-        self.pause_button.setIcon(QIcon("assets/pause.png"))
+        self.pause_button.setIcon(QIcon(os.path.join(self.config.assets_folder, "pause.png")))
         self.update_status("OK")
+        self.logger.info("Sync started")
         self.start_sync_thread()
 
 

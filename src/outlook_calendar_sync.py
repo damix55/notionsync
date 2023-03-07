@@ -11,7 +11,7 @@ import fnmatch
 # [ ] Icona calendario -> template eventi (si può mettere organizzatore e luogo per esempio) 
 # [ ] Aggiunta di colonna preferiti su Worklog
 
-class CalendarSyncer:
+class CalendarSync:
     """Calendar sync class to sync events from Outlook to Notion
 
     Attributes:

@@ -31,7 +31,7 @@ class Config:
         self.timezone = pytz.timezone(self.timezone_str)
 
 
-    def load_last_sync(self, activity):
+    def load_last_sync(self, activity, sync_token=False):
         """Load last sync from config file.
 
         Returns:
@@ -40,21 +40,38 @@ class Config:
 
         # check if the file exists
         if not os.path.isfile(self.last_sync_file):
+            if sync_token:
+                return None, None
             return None
         
         # load last sync
         with open(self.last_sync_file, 'r') as f:
-            last_sync = json.load(f)[activity]
+            data = json.load(f)
+            if activity not in data:
+                if sync_token:
+                    return None, None
+                return None
+            
+            if sync_token:
+                data = data[activity]
+                last_sync = data['last_sync']
+                sync_token = data['sync_token']
+            else:
+                last_sync = data[activity]
 
         # convert to datetime
         last_sync = datetime.strptime(last_sync, '%Y-%m-%d %H:%M:%S.%f')
 
         # add timezone
         last_sync = self.timezone.localize(last_sync)
+
+        if sync_token:
+            return last_sync, sync_token
+        
         return last_sync
     
 
-    def update_last_sync(self, activity):
+    def update_last_sync(self, activity, sync_token=None):
         """Update last sync in config file.
 
         Returns:
@@ -62,7 +79,13 @@ class Config:
         """
 
         last_sync = datetime.now(self.timezone)
-        data = {activity: last_sync.strftime('%Y-%m-%d %H:%M:%S.%f')}
+        last_sync = last_sync.strftime('%Y-%m-%d %H:%M:%S.%f')
+        
+        if sync_token is not None:
+            data = {activity: {'last_sync': last_sync, 'sync_token': sync_token}}
+
+        else:
+            data = {activity: last_sync}
         
         # update the json file
         if os.path.isfile(self.last_sync_file):
@@ -75,3 +98,5 @@ class Config:
             json.dump(data, f)
 
         return last_sync
+    
+
