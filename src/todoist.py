@@ -1,4 +1,5 @@
 import datetime
+import uuid
 import requests
 import logging
 from simplejson.errors import JSONDecodeError
@@ -28,44 +29,26 @@ class Todoist:
             raise e
 
         if response.status_code < 200 or response.status_code > 299:
-            self.logger.error(f'Error: {response_data}')
-            raise Exception(f'Error: {response_data["error"]}')
+            # self.logger.error(f'Error: {response_data}')
+            raise Exception(response_data["error"])
         
         return response_data
-    
 
-    def sync_read(self, sync_token=None):
+
+    def sync_read_items(self, sync_token=None):
         if sync_token == None:
             sync_token = '*'
 
-        resource_types = '["labels", "projects", "items", "sections"]'
+        resource_types = '["items"]'
         data = self.request('GET', '/sync', data={'sync_token': sync_token, 'resource_types': resource_types})
         self.sync_token = data['sync_token']
-        return data
 
+        projects = self.update_projects()
 
-    def sync_read_items_all(self, sync_token=None, last_sync=None):
-        # [ ] Add support for sections ?
-        # [ ] Manage recurring tasks: since the id is the same, instead of checking if the task, edit to the next date
-
-        projects = self.get_projects()
-
-        for item in self.sync_read_items_completed(last_sync):
-            processed_item = {
-                'id': item['id'],
-                'content': item['content'],
-                'checked': True
-            }
-
-            yield processed_item
-
-
-        for item in self.sync_read(sync_token)['items']:
+        for item in data['items']:
             due_date = None
-            is_recurring = False
             if not item['is_deleted'] and item['due'] is not None:
                 due_date = datetime.datetime.strptime(item['due']['date'], '%Y-%m-%d').date()
-                is_recurring = item['due']['is_recurring']
                 
             processed_item = {
                 'id': item['id'],
@@ -73,30 +56,82 @@ class Todoist:
                 'description': item['description'],
                 'priority': item['priority'],
                 'due': due_date,
-                'project': next((project['name'] for project in projects if project['id'] == item['project_id']), None),
-                # 'section': next((section['name'] for section in sections if section['id'] == item['section_id']), None),
+                'project': projects.get(item['project_id'], None),
                 'labels': item['labels'],
                 'checked': item['checked'],
                 'is_deleted': item['is_deleted'],
-                'is_recurring': is_recurring,
+                # 'section': next((section['name'] for section in sections if section['id'] == item['section_id']), None),
+                # 'is_recurring': is_recurring,
             }
 
             yield processed_item
-
-
-        self.last_sync = datetime.datetime.now(tz=datetime.timezone.utc)
-
-
-    def sync_read_items_completed(self, last_sync=None):
-        data = {} 
-        if last_sync is not None:
-            # Set last sync time in UTC
-            since = last_sync.astimezone(datetime.timezone.utc)
-            data['since'] = since.isoformat().split('.')[0]
-
-        data = self.request('GET', '/completed/get_all', data=data)['items']
-
-        return data
     
-    def get_projects(self):
-        return self.request('GET', '/sync', data={'resource_types': '["projects"]'})['projects']
+
+    def update_projects(self):
+        projects = self.request('GET', '/sync', data={'resource_types': '["projects"]'})['projects']
+        self.projects = {p['id']: p['name'] for p in projects}
+
+        return self.projects
+    
+
+    def project_id_from_name(self, name):
+        for p_id, p_name in self.projects.items():
+            if p_name == name:
+                return p_id
+    
+
+    def add_task(self, task):
+        data = {
+            'content': task['content'],
+            'description': task['description'],
+            'priority': task['priority'],
+            'labels': task['labels'],
+            'checked': task['checked'],
+        }
+
+        if task['due'] is not None:
+            data['due'] = {
+                'date': task['due'].strftime('%Y-%m-%d')
+            }
+
+        project = self.project_id_from_name(task['project'])
+        if project is not None:
+            data['project_id'] = project
+
+        uuid_gen = str(uuid.uuid4())
+
+        commands = [{
+            'type': 'item_add',
+            'uuid': uuid_gen,
+            'temp_id': uuid_gen,
+            'args': data
+        }]
+
+        response = self.request('POST', '/sync', data={'sync_token': '*', 'resource_types': [], 'commands': commands})
+        print(response)
+        status = response['sync_status'][uuid_gen]
+
+        if str(status) != 'ok':
+            raise Exception(response["error"])
+        
+        self.sync_token = response['sync_token']
+        task_id = response['temp_id_mapping'][uuid_gen]
+        return task_id
+    
+
+    def check_task_exists(self, task_id):
+        if task_id is None:
+            return False
+        
+        try:
+            self.request('GET', '/items/get', data={'item_id': task_id})
+            return True
+        
+        except Exception as e:
+            if e.args[0] == 'Item not found':
+                return False
+            
+            else:
+                raise e
+
+        

@@ -79,13 +79,13 @@ class Config:
         """
 
         last_sync = datetime.now(self.timezone)
-        last_sync = last_sync.strftime('%Y-%m-%d %H:%M:%S.%f')
+        last_sync_str = last_sync.strftime('%Y-%m-%d %H:%M:%S.%f')
         
         if sync_token is not None:
-            data = {activity: {'last_sync': last_sync, 'sync_token': sync_token}}
+            data = {activity: {'last_sync': last_sync_str, 'sync_token': sync_token}}
 
         else:
-            data = {activity: last_sync}
+            data = {activity: last_sync_str}
         
         # update the json file
         if os.path.isfile(self.last_sync_file):

@@ -1,7 +1,8 @@
+from datetime import datetime
+import os
 from notion_client import Client
+from notion2md.exporter.block import StringExporter
 
-# [ ] Salvarsi projects senza doverli recuperare ogni volta
-# [ ] Fare update progetti ad ogni sync
 
 class Notion:
     def __init__(self, config, timezone):
@@ -11,17 +12,30 @@ class Notion:
         self.tasks_db = config['tasks_db']
         self.timezone = timezone
 
+        # export NOTION_TOKEN environment variable for notion2md
+        os.environ['NOTION_TOKEN'] = config['key']
+
     
-    def get_projects_names(self):
+    def update_projects(self):
         """Get all the projects from Notion database
         
         Returns:
             dict: {project_name: project_id}
         """
         response = self.notion.databases.query(database_id=self.project_db)
-        projects = {p['properties']['Nome']['title'][0]['text']['content']:p['id'] for p in response['results']}
+        self.projects = {p['properties']['Nome']['title'][0]['text']['content']:p['id'] for p in response['results']}
+
+        return self.projects
+    
+
+    def get_projects(self):
+        """Get all the projects from Notion database
         
-        return projects
+        Returns:
+            dict: {project_id: project_name}
+        """
+
+        return self.projects
     
 
     def get_project_id(self, project_name):
@@ -33,7 +47,7 @@ class Notion:
         Returns:
             str: project id
         """
-        projects = self.get_projects_names()
+        projects = self.get_projects()
         return projects.get(project_name, None)
     
 
@@ -56,6 +70,37 @@ class Notion:
                     projects_ids.append({'id': project_id})
         
         return projects_ids
+    
+
+    def get_project_name(self, project_id):
+        """Get project name from project id
+        
+        Args:
+            project_id (str): project id
+        
+        Returns:
+            str: project name
+        """
+        projects = self.get_projects()
+        return next((k for k, v in projects.items() if v == project_id), None)
+
+
+    def projects_id_to_name(self, projects):
+        """Convert projects ids to names
+        
+        Args:
+            projects (list): list of project ids
+        
+        Returns:
+            list: list of project names
+        """
+        projects_names = []
+
+        if projects is not None:
+            for p in projects:
+                project_name = self.get_project_name(p)
+                if project_name is not None:
+                    projects_names.append(project_name)
 
     
     def get_from_db(self, db_id, id):
@@ -241,8 +286,8 @@ class Notion:
         Args:
             data (dict): task data
         """
-        properties, content, icon = self.convert_task_to_notion(data)
-        self.add_in_db(self.tasks_db, properties, children=content, icon=icon, **kwargs)
+        properties, content = self.convert_task_to_notion(data)
+        self.add_in_db(self.tasks_db, properties, children=content, **kwargs)
 
 
     def update_task(self, task_internal_id, data, **kwargs):
@@ -253,20 +298,20 @@ class Notion:
             data (dict): task data
         """
         # TODO update the content too
-        properties, _, icon = self.convert_task_to_notion(data)
+        properties, _ = self.convert_task_to_notion(data)
 
         # update the page
-        self.notion.pages.update(task_internal_id, properties=properties, icon=icon, **kwargs)
+        self.notion.pages.update(task_internal_id, properties=properties, **kwargs)
 
-
-    def complete_task(self, task_internal_id):
-        """Check a task in Notion
+    
+    def update_id_task(self, internal_id, new_id):
+        """Update the id of a task in Notion
         
         Args:
-            task_id (str): task id
-            checked (bool): checked or not
+            internal_id (str): task internal id
+            new_id (str): new task id
         """
-        self.notion.pages.update(task_internal_id, properties={'Fatto': {'checkbox': True}})
+        self.notion.pages.update(internal_id, properties={'Id': {'rich_text': [{'text': {'content': new_id}}]}})
 
 
     def delete_task(self, task_internal_id):
@@ -293,7 +338,7 @@ class Notion:
             'Nome': {'title': [{'text': {'content': task['content']}}]},
             'Progetto': {'relation': self.projects_name_to_id([task['project']])},
             'Fatto': {'checkbox': task['checked']},
-            'Tags': {'multi_select': [{'name': t} for t in task['labels']]}
+            'Tags': {'multi_select': [{'name': t.replace('_', ' ').capitalize()} for t in task['labels']]}
         }
 
         priority = task['priority']
@@ -308,23 +353,118 @@ class Notion:
             date = date.isoformat()
             data.update({'Data': {'date': {'start': date}}})
 
+        body = task['description']
+        content = []
+        
+        if body != '':
+            content = [{
+                'object': 'block',
+                'type': 'paragraph',
+                'paragraph': {
+                    'rich_text': [
+                        {'type': 'text', 'text': {'content': task['description'],}}
+                    ]
+                }
 
-        content = [{
-            'object': 'block',
-            'type': 'paragraph',
-            'paragraph': {
-                'rich_text': [
-                    {'type': 'text', 'text': {'content': task['description'],}}
-                ]
+            }]
+
+        return data, content
+    
+
+    def get_tasks(self, from_date=None, to_date=None):
+        """Get all the tasks in Notion from last edit
+        
+        Args:
+            last_edit (datetime.datetime, optional): last edit date. Defaults to None.
+        
+        Returns:
+            list: list of tasks
+        """
+
+        # FIXME it doesn't find archived tasks, so it can't update them
+        # FIXME Last edited and created time properties are rounded to the nearest minute, take this into account
+
+        if from_date is None and to_date is None:
+            response = self.notion.databases.query(database_id=self.tasks_db)
+
+        else:
+            filter_params = {
+                "and": []
+            }
+            
+            if from_date is not None:
+                filter_params['and'].append({
+                    "timestamp": "last_edited_time",
+                    "last_edited_time": {
+                        "on_or_after": from_date.isoformat()
+                    }
+                })
+
+            if to_date is not None:
+                filter_params['and'].append({
+                    "timestamp": "last_edited_time",
+                    "last_edited_time": {
+                        "on_or_before": to_date.isoformat()
+                    }
+                })
+
+            response = self.notion.databases.query(
+                database_id=self.tasks_db,
+                filter=filter_params
+            )
+
+        for task in response['results']:
+            # get the last edit time
+            last_edit = task['last_edited_time']
+
+            task_id = task['properties']['Id']['rich_text']
+            if task_id != []:
+                task_id = task_id[0]['text']['content']
+            else:
+                task_id = None
+
+            # Convert the priority
+            priority = task['properties']['Priorità']['select']
+            if priority is not None:
+                priority = priority['name']
+                priority = int(priority)
+                priority = 5-priority
+            else:
+                priority = 1
+
+            # Convert the due date
+            due = task['properties']['Data']['date']
+            if due is not None:
+                due = datetime.fromisoformat(due['start'])
+
+            # Get the project name
+            project = task['properties']['Progetto']['relation']
+
+            if project != []:
+                project = self.get_project_name(project[0]['id'])
+            else:
+                project = 'Inbox'
+
+            # Get the description: use the plain text of the body
+            description = None
+
+            description = StringExporter(block_id=task['id']).export().replace('<br/>', '\n')
+            if description == '':
+                description = None
+
+            processed_item = {
+                'notion_id': task['id'],
+                'id': task_id,
+                'content': task['properties']['Nome']['title'][0]['text']['content'],
+                'description': description,
+                'labels': [t['name'].replace(' ', '_').lower() for t in task['properties']['Tags']['multi_select']],
+                'checked': task['properties']['Fatto']['checkbox'],
+                'is_deleted': task['archived'],
+                'due': due,
+                'project': project,
+                'priority': priority
             }
 
-        }]
-
-        icon = {
-            "type": "external",
-            "external":{
-                "url": "https://www.notion.so/icons/list_gray.svg?mode=dark"
-            }
-        }
-
-        return data, content, icon
+            priority = task['properties']['Priorità']['select']
+            
+            yield processed_item

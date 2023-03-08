@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon
 from outlook_calendar_sync import CalendarSync
+from todoist_sync import TodoistSync
 from config import Config
 from _logger import logger_setup
 
@@ -27,7 +28,7 @@ from _logger import logger_setup
 # [ ] gestione errori
 
 
-class SyncerGUI(QMainWindow):
+class SyncGUI(QMainWindow):
 
     def __init__(self):
         super().__init__()
@@ -35,7 +36,7 @@ class SyncerGUI(QMainWindow):
         self.config_data = self.config.config
 
         self.logger = logging.getLogger(__name__)
-        logger_setup(self.config.logs_folder, keep_for_days=self.config_data['logs']['keep_for_days'], stdout_level='INFO')
+        logger_setup(self.config.logs_folder, keep_for_days=self.config_data['logs']['keep_for_days'], stdout_level='DEBUG')
         
         # Set up the main window
         self.setWindowTitle("NotionSync 0.0.1")
@@ -57,15 +58,16 @@ class SyncerGUI(QMainWindow):
 
         # Initialize the objects
         calendar = CalendarSync(self.config, threaded=True)
+        todoist = TodoistSync(self.config)
 
         # Create the widgets
-        self.calendar_gui_syncer = SyncerElement(calendar, self.config, 'Calendar')
-        # self.mail_gui_syncer = SyncerElement(calendar, 'Mail')
+        self.calendar_gui_syncer = SyncElement(calendar, self.config, 'Calendar')
+        self.todoist_gui_syncer = SyncElement(todoist, self.config, 'Todoist')
 
         # Create the main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.addLayout(self.calendar_gui_syncer)
-        # self.main_layout.addLayout(self.mail_gui_syncer)
+        self.main_layout.addLayout(self.todoist_gui_syncer)
 
         # Create the main widget
         self.main_widget = QWidget()
@@ -98,12 +100,13 @@ class SyncerGUI(QMainWindow):
         self.hide()
 
 
-class SyncerElement(QHBoxLayout):
+class SyncElement(QHBoxLayout):
     def __init__(self, handler, config, name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-        self.label = QLabel(name)
+        self.name = name
+        self.label = QLabel(self.name)
         self.label.setStyleSheet("font-weight: bold;")
         self.ok_label = QLabel("OK")
         self.ok_label.setStyleSheet("color: green; font-weight: bold;")
@@ -148,6 +151,9 @@ class SyncerElement(QHBoxLayout):
         self.sync_worker.is_running.connect(self.pause_button.setDisabled)
         self.sync_worker.is_running.connect(self.refresh_button.setDisabled)
         self.sync_worker.is_running.connect(self.update_status_running)
+
+        # connect has_error
+        self.sync_worker.has_error.connect(self.update_status_error)
 
         if not self.is_paused:
             self.start_sync_thread()
@@ -212,6 +218,14 @@ class SyncerElement(QHBoxLayout):
         else:
             self.pause_process()
 
+    
+    def update_status_error(self, has_error):
+        """
+        Update the value of the has_error attribute.
+        """
+
+        self.has_error = has_error
+
 
     def update_sync_time(self, time):
         """
@@ -242,15 +256,19 @@ class SyncerElement(QHBoxLayout):
         self.is_running = is_running
     
         if is_running:
-            self.update_status("Syncing...")
+            status = "Syncing..."
         
+        elif self.has_error:
+            status = "Error"
+            
+        elif self.is_paused:
+            status = "Paused"
+            
         else:
-            if self.is_paused:
-                self.update_status("Paused")
-            
-            else:
-                self.update_status("OK")
-            
+            status = "OK"
+
+        self.update_status(status)
+        
 
     def update_status(self, status):
         """
@@ -259,6 +277,8 @@ class SyncerElement(QHBoxLayout):
         Args:
             status (str): Status to update to
         """
+
+        self.logger.debug(f"Updating status of {self.name} to {status}")
 
         color_map = {
             "OK": "green",
@@ -274,6 +294,7 @@ class SyncerElement(QHBoxLayout):
 class SyncScheduler(QObject):
     last_sync = pyqtSignal(datetime.datetime)
     is_running = pyqtSignal(bool)
+    has_error = pyqtSignal(bool)
 
     def __init__(self, handler, timezone, minutes, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -286,14 +307,20 @@ class SyncScheduler(QObject):
 
 
     def sync(self):
-        self.is_running.emit(True)
-        # TODO make it configurable
-        from_date = datetime.datetime.now(self.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
-        to_date = from_date + datetime.timedelta(days=14)
+        try:
+            self.is_running.emit(True)
 
-        last_sync = self.handler.sync(from_date=from_date, to_date=to_date)
-        self.last_sync.emit(last_sync)
-        self.is_running.emit(False)
+            last_sync = self.handler.sync()
+
+            self.has_error.emit(False)
+            self.last_sync.emit(last_sync)
+
+        except Exception as e:
+            self.logger.exception(e)
+            self.has_error.emit(True)
+        
+        finally:
+            self.is_running.emit(False)
 
 
     def start_sync(self):
@@ -328,7 +355,7 @@ if __name__ == '__main__':
 
     # Start the application
     app = QApplication(sys.argv)
-    myapp = SyncerGUI()
+    myapp = SyncGUI()
 
     # Determine whether to start from GUI or taskbar
     if args.start_from == "gui":

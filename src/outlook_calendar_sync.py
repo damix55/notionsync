@@ -1,3 +1,4 @@
+import datetime
 from outlook_calendar import OutlookCalendar
 from notion import Notion
 import logging
@@ -36,8 +37,6 @@ class CalendarSync:
 
         self.activity = 'calendar'
         self.last_sync = self.config.load_last_sync(self.activity)
-        self.status = 'not started'
-        self.exception = None
 
         if self.last_sync is not None:
             self.logger.info(f"Last sync: {self.last_sync.strftime('%d/%m/%Y %H:%M:%S')}")
@@ -57,10 +56,16 @@ class CalendarSync:
         updated = 0
         deleted = 0
 
-        if self.threaded:
-            pythoncom.CoInitialize()
+        self.notion.update_projects()
+
+        # make this configurable
+        from_date = datetime.datetime.now(self.config.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
+        to_date = from_date + datetime.timedelta(days=14)
 
         try:
+            if self.threaded:
+                pythoncom.CoInitialize()
+
             # Iterate through all new and modified events
             for event in self.outlook_calendar.iterate_events(from_date, to_date, self.last_sync, self.threaded):
                 if any(fnmatch.fnmatch(event['subject'], i) for i in self.config_data['calendar']['ignore']):
@@ -102,7 +107,7 @@ class CalendarSync:
                     self.logger.info("Event does not exist in Notion, skipping")
 
             
-            success_message = f"Calendar sync successful: "
+            success_message = f"Notion calendar sync successful: "
             if created == 0 and updated == 0 and deleted == 0:
                 self.logger.info(success_message + "nothing to sync")
 
@@ -118,18 +123,13 @@ class CalendarSync:
 
             # Save last sync
             self.last_sync = self.config.update_last_sync(self.activity)
-            self.exception = None
-            self.status = 'success'
+
+            pythoncom.CoUninitialize()
+            
             return self.last_sync
         
         
         except Exception as e:
-            # print the stack trace
-            self.logger.exception("Calendar sync failed")
-            self.logger.error(e)
-            self.exception = e 
-            self.status = 'failed'
-
-        finally:
             if self.threaded:
                 pythoncom.CoUninitialize()
+            raise e
