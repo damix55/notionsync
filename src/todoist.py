@@ -119,6 +119,43 @@ class Todoist:
         return task_id
     
 
+    def update_task(self, task):
+        data = {
+            'id': task['id'],
+            'content': task['content'],
+            'description': task['description'],
+            'priority': task['priority'],
+            'labels': task['labels'],
+            'checked': task['checked'],
+        }
+
+        if task['due'] is not None:
+            data['due'] = {
+                'date': task['due'].strftime('%Y-%m-%d')
+            }
+
+        project = self.project_id_from_name(task['project'])
+        if project is not None:
+            data['project_id'] = project
+
+        uuid_gen = str(uuid.uuid4())
+
+        commands = [{
+            'type': 'item_update',
+            'uuid': uuid_gen,
+            'args': data
+        }]
+
+        response = self.request('POST', '/sync', data={'sync_token': self.sync_token, 'resource_types': [], 'commands': commands})
+        print(response)
+        status = response['sync_status'][uuid_gen]
+
+        if str(status) != 'ok':
+            raise Exception(response["error"])
+        
+        self.sync_token = response['sync_token']
+    
+
     def check_task_exists(self, task_id):
         if task_id is None:
             return False

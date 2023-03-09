@@ -416,6 +416,10 @@ class Notion:
         for task in response['results']:
             # get the last edit time
             last_edit = task['last_edited_time']
+            print(from_date, to_date, last_edit)
+            
+            # TODO last edit arrotondato al minuto, trovare una maniera per gestirlo
+
 
             task_id = task['properties']['Id']['rich_text']
             if task_id != []:

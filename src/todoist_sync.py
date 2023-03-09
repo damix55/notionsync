@@ -6,6 +6,9 @@ import logging
 # [ ] manca update notion -> todoist
 # [ ] verificare sync in loop dopo aver aggiunto un task su todoist
 # [ ] sincronizzare colore label/tags ?
+# [ ] conversione da markdown a formato notion
+# [ ] implementare task con quick add (tipo se inserisci da notion con dentro # o @ fai aggiunta rapida)
+# [ ] se un task su notion ha la colonna id vuota, possiamo assumere che sia nuovo
 
 class TodoistSync:
     def __init__(self, config):
@@ -104,7 +107,7 @@ class TodoistSync:
                 # Update task
                 if task_exists:
                     self.logger.info(f"Updating task: {task_content}")
-                    # self.todoist.update_task(task_exists, task)
+                    self.todoist.update_task(task)
                     updated += 1
 
                 # Create task
@@ -133,7 +136,8 @@ class TodoistSync:
         
 
         # Save last sync
-        self.last_sync = self.config.update_last_sync(self.activity, self.todoist.sync_token)
+        self.sync_token = self.todoist.sync_token
+        self.last_sync = self.config.update_last_sync(self.activity, self.sync_token)
         return self.last_sync
 
 
