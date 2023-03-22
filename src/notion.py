@@ -353,6 +353,9 @@ class Notion:
             date = date.isoformat()
             data.update({'Data': {'date': {'start': date}}})
 
+        if task['recurrence'] is not None:
+            data.update({'Ricorrenza': {'rich_text': [{'text': {'content': task['recurrence']}}]}})
+
         body = task['description']
         content = []
         
@@ -450,11 +453,17 @@ class Notion:
                 project = 'Inbox'
 
             # Get the description: use the plain text of the body
-            description = None
-
             description = StringExporter(block_id=task['id']).export().replace('<br/>', '\n')
             if description == '':
                 description = None
+
+            # Get the recurrence
+            recurrence = task['properties']['Ricorrenza']['rich_text']
+            if recurrence != []:
+                recurrence = recurrence[0]['text']['content']
+            else:
+                recurrence = None
+                
 
             processed_item = {
                 'notion_id': task['id'],
@@ -466,7 +475,8 @@ class Notion:
                 'is_deleted': task['archived'],
                 'due': due,
                 'project': project,
-                'priority': priority
+                'priority': priority,
+                'recurrence': recurrence
             }
 
             priority = task['properties']['Priorità']['select']

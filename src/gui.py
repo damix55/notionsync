@@ -22,10 +22,9 @@ from todoist_sync import TodoistSync
 from config import Config
 from _logger import logger_setup
 
-# [ ] stop the process after n errors ?
-# [ ] manual start doesnt work
+
 # [ ] update the tarkbar tooltip with the last sync date
-# [ ] gestione errori
+# [ ] salvare stato sincronizzazione (pausa/play)
 
 
 class SyncGUI(QMainWindow):

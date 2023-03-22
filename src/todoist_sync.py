@@ -3,12 +3,11 @@ from todoist import Todoist
 from notion import Notion
 import logging
 
-# [ ] manca update notion -> todoist
-# [ ] verificare sync in loop dopo aver aggiunto un task su todoist
 # [ ] sincronizzare colore label/tags ?
 # [ ] conversione da markdown a formato notion
 # [ ] implementare task con quick add (tipo se inserisci da notion con dentro # o @ fai aggiunta rapida)
 # [ ] se un task su notion ha la colonna id vuota, possiamo assumere che sia nuovo
+# [ ] se rimuovo data su notion, non viene rimossa su todoist
 
 class TodoistSync:
     def __init__(self, config):
@@ -38,7 +37,10 @@ class TodoistSync:
         # Used for Notion to Todoist sync
         before_last_sync = datetime.datetime.now(tz=self.config.timezone)
 
+        # Update projects list
         self.notion.update_projects()
+
+        just_modified = []
 
         # Sync Todoist to Notion
         for task in self.todoist.sync_read_items(self.sync_token):
@@ -60,12 +62,14 @@ class TodoistSync:
                 if notion_task_id is not None:
                     self.logger.info(f"Updating task: {task_content}")
                     self.notion.update_task(notion_task_id, task)
+                    just_modified.append(task['id'])
                     updated += 1
 
                 # Create task
                 else:
                     self.logger.info(f"Creating task: {task_content}")
                     self.notion.add_task(task)
+                    just_modified.append(task['id'])
                     created += 1
 
         success_message = f"Notion tasks sync successful: "
@@ -104,6 +108,10 @@ class TodoistSync:
                 # else:
                 #     self.logger.info(f"Task does not exist in Todoist, skipping")
             else:
+                if task['id'] in just_modified:
+                    self.logger.info(f"Skipping task: {task_content} (just modified)")
+                    continue
+
                 # Update task
                 if task_exists:
                     self.logger.info(f"Updating task: {task_content}")
@@ -133,7 +141,6 @@ class TodoistSync:
 
             self.logger.info(success_message[:-2])
 
-        
 
         # Save last sync
         self.sync_token = self.todoist.sync_token

@@ -4,6 +4,9 @@ import requests
 import logging
 from simplejson.errors import JSONDecodeError
 
+# [ ] unire parti comuni add e update
+
+
 class Todoist:
     def __init__(self, config):
         self.config = config
@@ -47,8 +50,14 @@ class Todoist:
 
         for item in data['items']:
             due_date = None
-            if not item['is_deleted'] and item['due'] is not None:
-                due_date = datetime.datetime.strptime(item['due']['date'], '%Y-%m-%d').date()
+            recurrence = None
+
+            if item['due'] is not None:
+                if not item['is_deleted']:
+                    due_date = datetime.datetime.strptime(item['due']['date'], '%Y-%m-%d').date()
+
+                if item['due']['is_recurring']:
+                    recurrence = item['due']['string']
                 
             processed_item = {
                 'id': item['id'],
@@ -60,8 +69,8 @@ class Todoist:
                 'labels': item['labels'],
                 'checked': item['checked'],
                 'is_deleted': item['is_deleted'],
+                'recurrence': recurrence,
                 # 'section': next((section['name'] for section in sections if section['id'] == item['section_id']), None),
-                # 'is_recurring': is_recurring,
             }
 
             yield processed_item
@@ -90,9 +99,16 @@ class Todoist:
         }
 
         if task['due'] is not None:
-            data['due'] = {
-                'date': task['due'].strftime('%Y-%m-%d')
-            }
+            if task['recurrence'] is not None:
+                data['due']['string'] = task['recurrence']
+                data['due']['is_recurring'] = True
+                data['due']['lang'] = 'en'
+
+            else:
+                data['due']['is_recurring'] = False
+            
+            data['due']['date'] = task['due'].strftime('%Y-%m-%d')
+            
 
         project = self.project_id_from_name(task['project'])
         if project is not None:
@@ -133,6 +149,18 @@ class Todoist:
             data['due'] = {
                 'date': task['due'].strftime('%Y-%m-%d')
             }
+            
+            if task['recurrence'] is not None:
+                data['due']['string'] = task['recurrence']
+                data['due']['lang'] = 'en'
+                data['due']['is_recurring'] = True
+
+            else:
+                data['due']['is_recurring'] = False
+            
+        else:
+            data['due'] = None
+            
 
         project = self.project_id_from_name(task['project'])
         if project is not None:

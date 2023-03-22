@@ -1,0 +1,1 @@
+wt python C:\Users\damiano.dovico\Documents\Personale\Script\NotionSync\src\gui.py
