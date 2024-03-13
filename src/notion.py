@@ -205,13 +205,14 @@ class Notion:
         body = event['body']
         content = []
         if body != '':
+            body = body[:2000]  # max 2000 characters
             content = [{
                 'object': 'block',
                 'type': 'callout',
                 'callout': {
                     'icon': {"type": "external", "external":{"url": "https://www.notion.so/icons/drafts_gray.svg?mode=dark"}},
                     "color": "gray_background",
-                    "rich_text": [{"type": "text","text": {"content": event['body']}}],
+                    "rich_text": [{"type": "text","text": {"content": body}}],
                 }
             }]
 

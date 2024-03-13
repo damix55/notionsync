@@ -8,6 +8,9 @@ import logging
 # [ ] implementare task con quick add (tipo se inserisci da notion con dentro # o @ fai aggiunta rapida)
 # [ ] se un task su notion ha la colonna id vuota, possiamo assumere che sia nuovo
 # [ ] se rimuovo data su notion, non viene rimossa su todoist
+# [ ] se spunto evento ricorrente su Notion, invece di crearmi la nuova ricorrenza, me lo spunta del tutto (non appare più su todoist)
+# [ ] aggiornare data su Notion quando si inserisce/aggiorna/spunta un evento ricorrente da Notion (altrimenti rimane vuota o non aggiornata)
+# [ ] eventi ricorrenti sono buggati, a volte sposta il giorno su todoist (capire perché)
 
 class TodoistSync:
     def __init__(self, config):

@@ -25,6 +25,7 @@ from _logger import logger_setup
 
 # [ ] update the tarkbar tooltip with the last sync date
 # [ ] salvare stato sincronizzazione (pausa/play)
+# [ ] dare una sistemata e pulizia generale al codice
 
 
 class SyncGUI(QMainWindow):
@@ -60,8 +61,9 @@ class SyncGUI(QMainWindow):
         todoist = TodoistSync(self.config)
 
         # Create the widgets
+        # TODO: make active configurable
         self.calendar_gui_syncer = SyncElement(calendar, self.config, 'Calendar')
-        self.todoist_gui_syncer = SyncElement(todoist, self.config, 'Todoist')
+        self.todoist_gui_syncer = SyncElement(todoist, self.config, 'Todoist', is_paused=True)
 
         # Create the main layout
         self.main_layout = QVBoxLayout()
@@ -100,7 +102,7 @@ class SyncGUI(QMainWindow):
 
 
 class SyncElement(QHBoxLayout):
-    def __init__(self, handler, config, name, *args, **kwargs):
+    def __init__(self, handler, config, name, is_paused=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(__name__)
 
@@ -131,7 +133,7 @@ class SyncElement(QHBoxLayout):
         self.pause_button.setFixedSize(32, 32)
         self.pause_button.clicked.connect(self.toggle_pause)
 
-        self.is_paused = False
+        self.is_paused = is_paused
         self.is_running = False
 
         self.addWidget(self.label)
@@ -156,6 +158,9 @@ class SyncElement(QHBoxLayout):
 
         if not self.is_paused:
             self.start_sync_thread()
+        
+        else:
+            self.update_status("Paused")
 
     
     def start_sync_thread(self):

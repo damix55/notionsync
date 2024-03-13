@@ -7,10 +7,12 @@ import fnmatch
 
 # [ ] Log migliori
 # [ ] Trovare come fare update senza cancellare e ricreare
+# [ ] Modificare solo il callout lasciando il resto invariato (potrebbero essere note)
+# [ ] Aggiungere il link al meeting
 # [ ] Mettere i link cliccabili sul body?
 # [ ] Contenuto filtrato della roba di Teams/Google Meet così ci sono le note di chi organizza il Meeting
-# [ ] Icona calendario -> template eventi (si può mettere organizzatore e luogo per esempio) 
 # [ ] Aggiunta di colonna preferiti su Worklog
+# [ ] Sync solo su eventi non ancora iniziati
 
 class CalendarSync:
     """Calendar sync class to sync events from Outlook to Notion

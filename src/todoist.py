@@ -96,18 +96,19 @@ class Todoist:
             'priority': task['priority'],
             'labels': task['labels'],
             'checked': task['checked'],
+            'due': {}
         }
 
         if task['due'] is not None:
-            if task['recurrence'] is not None:
-                data['due']['string'] = task['recurrence']
-                data['due']['is_recurring'] = True
-                data['due']['lang'] = 'en'
-
-            else:
-                data['due']['is_recurring'] = False
-            
             data['due']['date'] = task['due'].strftime('%Y-%m-%d')
+
+        if task['recurrence'] is not None:
+            data['due']['string'] = task['recurrence']
+            data['due']['is_recurring'] = True
+            data['due']['lang'] = 'en'
+
+        else:
+            data['due']['is_recurring'] = False
             
 
         project = self.project_id_from_name(task['project'])
@@ -124,7 +125,6 @@ class Todoist:
         }]
 
         response = self.request('POST', '/sync', data={'sync_token': '*', 'resource_types': [], 'commands': commands})
-        print(response)
         status = response['sync_status'][uuid_gen]
 
         if str(status) != 'ok':
@@ -142,29 +142,31 @@ class Todoist:
             'description': task['description'],
             'priority': task['priority'],
             'labels': task['labels'],
-            'checked': task['checked'],
+            'checked': task['checked']
         }
 
         if task['due'] is not None:
             data['due'] = {
                 'date': task['due'].strftime('%Y-%m-%d')
             }
-            
-            if task['recurrence'] is not None:
-                data['due']['string'] = task['recurrence']
-                data['due']['lang'] = 'en'
-                data['due']['is_recurring'] = True
-
-            else:
-                data['due']['is_recurring'] = False
-            
         else:
             data['due'] = None
             
+        if task['recurrence'] is not None:
+            data['due'] = {
+                'string': task['recurrence'],
+                'lang': 'en',
+                'is_recurring': True
+            }
+        else:
+            data['due'] = {
+                'is_recurring': False
+            }
+            
 
-        project = self.project_id_from_name(task['project'])
-        if project is not None:
-            data['project_id'] = project
+            project = self.project_id_from_name(task['project'])
+            if project is not None:
+                data['project_id'] = project
 
         uuid_gen = str(uuid.uuid4())
 
@@ -175,7 +177,6 @@ class Todoist:
         }]
 
         response = self.request('POST', '/sync', data={'sync_token': self.sync_token, 'resource_types': [], 'commands': commands})
-        print(response)
         status = response['sync_status'][uuid_gen]
 
         if str(status) != 'ok':
